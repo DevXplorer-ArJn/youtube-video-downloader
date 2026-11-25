@@ -121,28 +121,31 @@ class VideoDownloaderApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Video Downloader")
-        self.geometry("960x700")
-        self.minsize(780, 620)
+        self.geometry("1000x760")
+        self.minsize(400, 620)
 
         self.current_qualities = []
         self.selected_height = None
         self.download_thread = None
+        self.quality_columns = 4
+        self._responsive_job = None
 
         self.colors = {
-            "background": "#F4F6FA",
+            "background": "#F3F5F4",
             "surface": "#FFFFFF",
-            "sidebar": "#17233B",
-            "sidebar_muted": "#9BA9C2",
-            "text": "#17233B",
-            "muted": "#718096",
-            "border": "#E4E9F1",
-            "accent": "#536DFE",
-            "accent_hover": "#4058E8",
-            "accent_soft": "#EEF0FF",
+            "text": "#1C2928",
+            "muted": "#5D6A68",
+            "border": "#DCE3E0",
+            "accent": "#B6412F",
+            "accent_hover": "#963626",
+            "accent_soft": "#FCECE8",
+            "success": "#26724C",
+            "error": "#A83228",
         }
         self.configure(bg=self.colors["background"])
         self.setup_styles()
         self.build_layout()
+        self.bind("<Configure>", self.schedule_responsive_layout)
 
     def setup_styles(self):
         style = ttk.Style(self)
@@ -156,16 +159,59 @@ class VideoDownloaderApp(tk.Tk):
             background=self.colors["surface"],
         )
         style.configure(
+            "Panel.TFrame",
+            background=self.colors["surface"],
+            borderwidth=1,
+            relief="solid",
+            bordercolor=self.colors["border"],
+        )
+        style.configure(
+            "Header.TFrame",
+            background=self.colors["surface"],
+        )
+        style.configure(
+            "Logo.TLabel",
+            background=self.colors["accent"],
+            foreground="#FFFFFF",
+            font=("Segoe UI", 13, "bold"),
+            anchor="center",
+        )
+        style.configure(
+            "Brand.TLabel",
+            background=self.colors["surface"],
+            foreground=self.colors["text"],
+            font=("Segoe UI", 11, "bold"),
+        )
+        style.configure(
+            "BrandNote.TLabel",
+            background=self.colors["surface"],
+            foreground=self.colors["muted"],
+            font=("Segoe UI", 8),
+        )
+        style.configure(
+            "Format.TLabel",
+            background=self.colors["accent_soft"],
+            foreground=self.colors["accent_hover"],
+            padding=(11, 7),
+            font=("Segoe UI", 9, "bold"),
+        )
+        style.configure(
             "Title.TLabel",
             background=self.colors["background"],
             foreground=self.colors["text"],
-            font=("Segoe UI", 22, "bold"),
+            font=("Segoe UI", 27, "bold"),
         )
         style.configure(
             "Subtitle.TLabel",
             background=self.colors["background"],
             foreground=self.colors["muted"],
             font=("Segoe UI", 10),
+        )
+        style.configure(
+            "Eyebrow.TLabel",
+            background=self.colors["background"],
+            foreground=self.colors["accent"],
+            font=("Segoe UI", 8, "bold"),
         )
         style.configure(
             "Section.TLabel",
@@ -183,7 +229,7 @@ class VideoDownloaderApp(tk.Tk):
             "VideoTitle.TLabel",
             background=self.colors["surface"],
             foreground=self.colors["text"],
-            font=("Segoe UI", 13, "bold"),
+            font=("Segoe UI", 14, "bold"),
         )
         style.configure(
             "Status.TLabel",
@@ -192,28 +238,52 @@ class VideoDownloaderApp(tk.Tk):
             font=("Segoe UI", 9),
         )
         style.configure(
+            "Success.TLabel",
+            background=self.colors["surface"],
+            foreground=self.colors["success"],
+            font=("Segoe UI", 9, "bold"),
+        )
+        style.configure(
+            "Error.TLabel",
+            background=self.colors["surface"],
+            foreground=self.colors["error"],
+            font=("Segoe UI", 9, "bold"),
+        )
+        style.configure(
             "Url.TEntry",
-            fieldbackground="#F8F9FC",
+            fieldbackground="#FAFBFA",
             foreground=self.colors["text"],
             insertcolor=self.colors["text"],
-            padding=(12, 11),
+            padding=(13, 12),
             bordercolor=self.colors["border"],
             lightcolor=self.colors["border"],
             darkcolor=self.colors["border"],
             font=("Segoe UI", 10),
         )
+        style.map(
+            "Url.TEntry",
+            bordercolor=[("focus", self.colors["accent"])],
+            lightcolor=[("focus", self.colors["accent"])],
+            darkcolor=[("focus", self.colors["accent"])],
+        )
         style.configure(
             "Primary.TButton",
             background=self.colors["accent"],
             foreground="#FFFFFF",
-            padding=(18, 11),
+            padding=(18, 12),
             borderwidth=0,
             font=("Segoe UI", 9, "bold"),
         )
         style.map(
             "Primary.TButton",
-            background=[("disabled", "#AEB8F8"), ("active", self.colors["accent_hover"])],
+            background=[
+                ("disabled", "#80534D"),
+                ("pressed", self.colors["accent_hover"]),
+                ("active", self.colors["accent_hover"]),
+            ],
             foreground=[("disabled", "#FFFFFF")],
+            relief=[("pressed", "sunken"), ("focus", "solid")],
+            bordercolor=[("focus", self.colors["text"])],
         )
         style.configure(
             "Secondary.TButton",
@@ -227,135 +297,125 @@ class VideoDownloaderApp(tk.Tk):
         )
         style.map(
             "Secondary.TButton",
-            background=[("active", "#F5F7FB")],
+            background=[("pressed", "#E9EEEB"), ("active", "#F3F6F4")],
+            relief=[("pressed", "sunken"), ("focus", "solid")],
+            bordercolor=[("focus", self.colors["text"])],
         )
         style.configure(
             "Quality.TButton",
             background=self.colors["surface"],
             foreground=self.colors["text"],
-            padding=(14, 11),
+            padding=(12, 11),
             borderwidth=1,
             relief="solid",
             bordercolor=self.colors["border"],
             font=("Segoe UI", 9, "bold"),
         )
-        style.map("Quality.TButton", background=[("active", "#F5F7FB")])
+        style.map(
+            "Quality.TButton",
+            background=[("pressed", "#E9EEEB"), ("active", "#F3F6F4")],
+            relief=[("pressed", "sunken"), ("focus", "solid")],
+            bordercolor=[("focus", self.colors["text"])],
+        )
         style.configure(
             "SelectedQuality.TButton",
             background=self.colors["accent_soft"],
             foreground=self.colors["accent"],
-            padding=(14, 11),
+            padding=(12, 11),
             borderwidth=1,
             relief="solid",
             bordercolor=self.colors["accent"],
             font=("Segoe UI", 9, "bold"),
         )
+        style.map(
+            "SelectedQuality.TButton",
+            background=[("active", "#F8DDD6")],
+            relief=[("pressed", "sunken"), ("focus", "solid")],
+            bordercolor=[("focus", self.colors["text"])],
+        )
         style.configure(
             "Horizontal.TProgressbar",
             background=self.colors["accent"],
-            troughcolor="#E9EDF5",
+            troughcolor="#E7ECE9",
             borderwidth=0,
-            thickness=8,
+            thickness=7,
         )
 
     def build_layout(self):
-        self.grid_rowconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
 
-        sidebar = tk.Frame(self, bg=self.colors["sidebar"], width=220)
-        sidebar.grid(row=0, column=0, sticky="ns")
-        sidebar.grid_propagate(False)
-        sidebar.grid_columnconfigure(0, weight=1)
-
-        brand = tk.Frame(sidebar, bg=self.colors["sidebar"])
-        brand.grid(row=0, column=0, sticky="ew", padx=22, pady=(28, 38))
-        tk.Label(
-            brand,
+        header = ttk.Frame(self, style="Header.TFrame", padding=(56, 16))
+        header.grid(row=0, column=0, sticky="ew")
+        header.grid_columnconfigure(1, weight=1)
+        ttk.Label(
+            header,
             text="▶",
-            bg="#34456B",
-            fg="#FFFFFF",
-            font=("Segoe UI", 12, "bold"),
+            style="Logo.TLabel",
             width=3,
-            height=1,
-            pady=6,
-        ).pack(side="left")
-        tk.Label(
-            brand,
-            text="  Video\n  Downloader",
-            bg=self.colors["sidebar"],
-            fg="#FFFFFF",
-            justify="left",
-            font=("Segoe UI", 11, "bold"),
-        ).pack(side="left")
-
-        tk.Label(
-            sidebar,
-            text="WORKSPACE",
-            bg=self.colors["sidebar"],
-            fg=self.colors["sidebar_muted"],
-            font=("Segoe UI", 8, "bold"),
-        ).grid(row=1, column=0, sticky="w", padx=24, pady=(0, 10))
-        tk.Label(
-            sidebar,
-            text="  ↓   Download video",
-            bg="#283754",
-            fg="#FFFFFF",
-            anchor="w",
-            padx=14,
-            pady=12,
-            font=("Segoe UI", 9, "bold"),
-        ).grid(row=2, column=0, sticky="ew", padx=12)
-
-        tk.Frame(sidebar, bg="#34425C", height=1).grid(
-            row=3, column=0, sticky="ew", padx=22, pady=24
-        )
-        tk.Label(
-            sidebar,
-            text="READY WHEN YOU ARE",
-            bg=self.colors["sidebar"],
-            fg=self.colors["sidebar_muted"],
-            font=("Segoe UI", 8, "bold"),
-        ).grid(row=4, column=0, sticky="w", padx=24, pady=(0, 8))
-        tk.Label(
-            sidebar,
-            text="Choose a video link to\nsee available qualities.",
-            bg=self.colors["sidebar"],
-            fg="#FFFFFF",
-            justify="left",
-            font=("Segoe UI", 9),
-        ).grid(row=5, column=0, sticky="w", padx=24)
-        tk.Label(
-            sidebar,
+            padding=(0, 8),
+        ).grid(row=0, column=0, rowspan=2, sticky="w")
+        ttk.Label(
+            header,
+            text="Video Downloader",
+            style="Brand.TLabel",
+        ).grid(row=0, column=1, sticky="sw", padx=(12, 0))
+        ttk.Label(
+            header,
+            text="A simple way to save your videos",
+            style="BrandNote.TLabel",
+        ).grid(row=1, column=1, sticky="nw", padx=(12, 0))
+        ttk.Label(
+            header,
             text="MP4  ·  H.264 + AAC",
-            bg=self.colors["sidebar"],
-            fg=self.colors["sidebar_muted"],
-            font=("Segoe UI", 8),
-        ).grid(row=6, column=0, sticky="sw", padx=24, pady=22)
+            style="Format.TLabel",
+        ).grid(row=0, column=2, rowspan=2, sticky="e", padx=(12, 0))
 
-        content = ttk.Frame(self, style="App.TFrame", padding=(34, 30, 34, 28))
-        content.grid(row=0, column=1, sticky="nsew")
+        content = ttk.Frame(self, style="App.TFrame", padding=(72, 34, 72, 30))
+        content.grid(row=1, column=0, sticky="nsew")
         content.grid_columnconfigure(0, weight=1)
-        content.grid_rowconfigure(3, weight=1)
+        self.content = content
+        self.header = header
 
-        ttk.Label(content, text="Download a video", style="Title.TLabel").grid(
-            row=0, column=0, sticky="w"
-        )
         ttk.Label(
             content,
-            text="Paste a YouTube link and pick the quality that works for you.",
+            text="YOUR VIDEO, YOUR QUALITY",
+            style="Eyebrow.TLabel",
+        ).grid(row=0, column=0, sticky="w", pady=(0, 7))
+        ttk.Label(
+            content,
+            text="Download a video",
+            style="Title.TLabel",
+        ).grid(row=1, column=0, sticky="w")
+        self.subtitle = ttk.Label(
+            content,
+            text="Paste a YouTube link, choose a resolution, and save it as MP4.",
             style="Subtitle.TLabel",
-        ).grid(row=1, column=0, sticky="w", pady=(5, 22))
-
-        link_card = ttk.Frame(content, style="Card.TFrame", padding=20)
-        link_card.grid(row=2, column=0, sticky="ew", pady=(0, 16))
-        link_card.grid_columnconfigure(0, weight=1)
-        ttk.Label(link_card, text="VIDEO LINK", style="Section.TLabel").grid(
-            row=0, column=0, sticky="w", pady=(0, 10)
         )
+        self.subtitle.grid(row=2, column=0, sticky="w", pady=(5, 22))
+
+        link_card = ttk.Frame(content, style="Panel.TFrame", padding=(20, 18))
+        link_card.grid(row=3, column=0, sticky="ew", pady=(0, 14))
+        link_card.grid_columnconfigure(0, weight=1)
+        ttk.Label(
+            link_card,
+            text="1  ·  VIDEO LINK",
+            style="Section.TLabel",
+        ).grid(row=0, column=0, sticky="w", pady=(0, 5))
+        ttk.Label(
+            link_card,
+            text="Paste a public YouTube video URL to check its available qualities.",
+            style="Body.TLabel",
+        ).grid(row=1, column=0, sticky="w", pady=(0, 12))
+
         url_row = ttk.Frame(link_card, style="Card.TFrame")
-        url_row.grid(row=1, column=0, sticky="ew")
+        url_row.grid(row=2, column=0, sticky="ew")
         url_row.grid_columnconfigure(0, weight=1)
-        self.url_entry = ttk.Entry(url_row, style="Url.TEntry")
+        self.url_entry = ttk.Entry(
+            url_row,
+            style="Url.TEntry",
+            takefocus=True,
+        )
         self.url_entry.grid(row=0, column=0, sticky="ew")
         self.url_entry.bind("<Return>", lambda _event: self.lookup())
         self.lookup_button = ttk.Button(
@@ -363,32 +423,33 @@ class VideoDownloaderApp(tk.Tk):
             text="Find qualities",
             style="Primary.TButton",
             command=self.lookup,
+            takefocus=True,
         )
         self.lookup_button.grid(row=0, column=1, padx=(10, 0))
 
-        download_card = ttk.Frame(content, style="Card.TFrame", padding=20)
-        download_card.grid(row=3, column=0, sticky="nsew")
+        download_card = ttk.Frame(content, style="Panel.TFrame", padding=(20, 18))
+        download_card.grid(row=4, column=0, sticky="ew")
         download_card.grid_columnconfigure(0, weight=1)
-        download_card.grid_rowconfigure(5, weight=1)
-
-        ttk.Label(download_card, text="VIDEO DETAILS", style="Section.TLabel").grid(
-            row=0, column=0, sticky="w"
-        )
+        ttk.Label(
+            download_card,
+            text="2  ·  VIDEO DETAILS",
+            style="Section.TLabel",
+        ).grid(row=0, column=0, sticky="w")
         self.video_title = ttk.Label(
             download_card,
             text="Your video details will appear here",
             style="VideoTitle.TLabel",
         )
-        self.video_title.grid(row=1, column=0, sticky="w", pady=(16, 3))
+        self.video_title.grid(row=1, column=0, sticky="w", pady=(13, 3))
         self.video_meta = ttk.Label(
             download_card,
-            text="Add a link above to get started.",
+            text="Add a link above to see available resolutions.",
             style="Body.TLabel",
         )
         self.video_meta.grid(row=2, column=0, sticky="w")
 
         ttk.Separator(download_card).grid(
-            row=3, column=0, sticky="ew", pady=(18, 16)
+            row=3, column=0, sticky="ew", pady=(16, 14)
         )
         quality_header = ttk.Frame(download_card, style="Card.TFrame")
         quality_header.grid(row=4, column=0, sticky="ew")
@@ -399,45 +460,136 @@ class VideoDownloaderApp(tk.Tk):
         ).pack(side="left")
         ttk.Label(
             quality_header,
-            text="Downloads are saved as MP4",
+            text="Output format  MP4",
             style="Body.TLabel",
         ).pack(side="right")
 
         self.quality_frame = ttk.Frame(download_card, style="Card.TFrame")
-        self.quality_frame.grid(row=5, column=0, sticky="ew", pady=(12, 8))
-        for column in range(4):
-            self.quality_frame.grid_columnconfigure(column, weight=1, uniform="quality")
+        self.quality_frame.grid(row=5, column=0, sticky="ew", pady=(12, 2))
+        self.configure_quality_columns()
 
         ttk.Separator(download_card).grid(
-            row=6, column=0, sticky="ew", pady=(12, 14)
+            row=6, column=0, sticky="ew", pady=(13, 12)
         )
         status_row = ttk.Frame(download_card, style="Card.TFrame")
         status_row.grid(row=7, column=0, sticky="ew")
         status_row.grid_columnconfigure(0, weight=1)
-        self.status_label = ttk.Label(status_row, text="", style="Status.TLabel")
+        self.status_label = ttk.Label(
+            status_row,
+            text="Paste a link to discover available qualities.",
+            style="Status.TLabel",
+        )
         self.status_label.grid(row=0, column=0, sticky="w")
         self.open_button = ttk.Button(
             status_row,
             text="Open downloads folder",
             style="Secondary.TButton",
             command=self.open_download_folder,
+            takefocus=True,
         )
         self.open_button.grid(row=0, column=1, sticky="e")
+        self.status_row = status_row
         self.progress = ttk.Progressbar(
             download_card,
             mode="determinate",
             style="Horizontal.TProgressbar",
         )
-        self.progress.grid(row=8, column=0, sticky="ew", pady=(12, 0))
+        self.progress.grid(row=8, column=0, sticky="ew", pady=(13, 0))
 
         self.download_button = ttk.Button(
             content,
-            text="↓   Download video",
+            text="Download MP4",
             style="Primary.TButton",
             command=self.start_download,
             state="disabled",
+            takefocus=True,
         )
-        self.download_button.grid(row=4, column=0, sticky="e", pady=(16, 0))
+        self.download_button.grid(row=5, column=0, sticky="ew", pady=(14, 0))
+
+    def configure_quality_columns(self):
+        for column in range(4):
+            self.quality_frame.grid_columnconfigure(
+                column,
+                weight=1 if column < self.quality_columns else 0,
+                uniform="quality" if column < self.quality_columns else "",
+            )
+
+    def render_qualities(self):
+        for child in self.quality_frame.winfo_children():
+            child.destroy()
+
+        for index, quality in enumerate(self.current_qualities):
+            button = ttk.Button(
+                self.quality_frame,
+                text=f"{quality['label']}\n{quality['size'] or 'Size varies'}",
+                style="Quality.TButton",
+                command=lambda selected=quality: self.select_quality(selected),
+                takefocus=True,
+            )
+            column = index % self.quality_columns
+            button.grid(
+                row=index // self.quality_columns,
+                column=column,
+                sticky="ew",
+                padx=(0, 8 if column < self.quality_columns - 1 else 0),
+                pady=(0, 8),
+            )
+
+    def schedule_responsive_layout(self, event):
+        if event.widget is self and self._responsive_job is None:
+            self._responsive_job = self.after_idle(self.apply_responsive_layout)
+
+    def apply_responsive_layout(self):
+        self._responsive_job = None
+        width = self.winfo_width()
+        columns = 4 if width >= 900 else 3 if width >= 680 else 2 if width >= 470 else 1
+        if columns != self.quality_columns:
+            self.quality_columns = columns
+            self.configure_quality_columns()
+            if self.current_qualities:
+                self.render_qualities()
+                if self.selected_height:
+                    selected = next(
+                        (
+                            quality for quality in self.current_qualities
+                            if str(quality["height"]) == self.selected_height
+                        ),
+                        None,
+                    )
+                    if selected:
+                        self.select_quality(selected)
+
+        horizontal_padding = 16 if width < 520 else 28 if width < 760 else 72
+        vertical_padding = 24 if width < 520 else 34
+        self.content.configure(
+            padding=(
+                horizontal_padding,
+                vertical_padding,
+                horizontal_padding,
+                24 if width < 520 else 30,
+            )
+        )
+        self.header.configure(
+            padding=(horizontal_padding, 13 if width < 520 else 16)
+        )
+        wraplength = max(240, width - (2 * horizontal_padding) - 48)
+        self.subtitle.configure(wraplength=wraplength)
+        self.video_title.configure(wraplength=wraplength)
+        self.video_meta.configure(wraplength=wraplength)
+        if width < 520:
+            self.lookup_button.grid_configure(
+                row=1, column=0, sticky="ew", padx=0, pady=(9, 0)
+            )
+            self.open_button.grid_configure(
+                row=1, column=0, sticky="ew", padx=0, pady=(8, 0)
+            )
+        else:
+            self.lookup_button.grid_configure(
+                row=0, column=1, sticky="", padx=(10, 0), pady=0
+            )
+            self.open_button.grid_configure(
+                row=0, column=1, sticky="e", padx=0, pady=0
+            )
 
     def set_busy(self, busy):
         self.lookup_button.config(state="disabled" if busy else "normal")
@@ -459,7 +611,10 @@ class VideoDownloaderApp(tk.Tk):
         self.selected_height = None
         self.video_title.config(text="Looking up video...")
         self.video_meta.config(text="Checking available qualities.")
-        self.status_label.config(text="Reading available qualities...")
+        self.status_label.config(
+            text="Reading available qualities.",
+            style="Status.TLabel",
+        )
         self.progress["value"] = 0
         self.download_button.config(state="disabled")
         self.set_busy(True)
@@ -541,7 +696,10 @@ class VideoDownloaderApp(tk.Tk):
     def show_lookup_result(self, result):
         self.set_busy(False)
         if not result["qualities"]:
-            self.status_label.config(text="No downloadable video qualities were found.")
+            self.status_label.config(
+                text="No downloadable video qualities were found.",
+                style="Error.TLabel",
+            )
             return
 
         meta = result["channel"]
@@ -549,28 +707,16 @@ class VideoDownloaderApp(tk.Tk):
             meta += f"  ·  {result['duration']}"
         self.video_title.config(text=result["title"])
         self.video_meta.config(text=meta)
-        self.status_label.config(text="")
         self.current_qualities = result["qualities"]
-
-        for index, quality in enumerate(self.current_qualities):
-            button = ttk.Button(
-                self.quality_frame,
-                text=f"{quality['label']}\n{quality['size'] or 'Size varies'}",
-                style="Quality.TButton",
-                command=lambda selected=quality: self.select_quality(selected),
-            )
-            button.grid(
-                row=index // 4,
-                column=index % 4,
-                sticky="ew",
-                padx=(0, 8 if index % 4 < 3 else 0),
-                pady=(0, 8),
-            )
+        self.render_qualities()
         self.select_quality(self.current_qualities[0])
 
     def show_lookup_error(self, message):
         self.set_busy(False)
-        self.status_label.config(text="")
+        self.status_label.config(
+            text="Couldn't read that video. Check the link and try again.",
+            style="Error.TLabel",
+        )
         messagebox.showerror("Unable to read video", message)
 
     def select_quality(self, quality):
@@ -581,6 +727,10 @@ class VideoDownloaderApp(tk.Tk):
                 style="SelectedQuality.TButton" if selected else "Quality.TButton"
             )
         self.download_button.config(state="normal")
+        self.status_label.config(
+            text="Ready to download in MP4.",
+            style="Status.TLabel",
+        )
 
     def start_download(self):
         url = self.url_entry.get().strip()
@@ -592,7 +742,10 @@ class VideoDownloaderApp(tk.Tk):
         self.lookup_button.config(state="disabled")
         self.download_button.config(state="disabled")
         self.progress["value"] = 0
-        self.status_label.config(text="Starting download...")
+        self.status_label.config(
+            text="Starting download...",
+            style="Status.TLabel",
+        )
         self.download_thread = threading.Thread(
             target=self.download_worker,
             args=(url, self.selected_height),
@@ -631,11 +784,17 @@ class VideoDownloaderApp(tk.Tk):
 
     def update_download_progress(self, percent, status):
         self.progress["value"] = percent
-        self.status_label.config(text=f"{status}  {percent}%")
+        self.status_label.config(
+            text=f"{status}  {percent}%",
+            style="Status.TLabel",
+        )
 
     def download_complete(self):
         self.progress["value"] = 100
-        self.status_label.config(text="Download complete.")
+        self.status_label.config(
+            text="Download complete.",
+            style="Success.TLabel",
+        )
         self.lookup_button.config(state="normal")
         self.download_button.config(state="normal")
         if messagebox.askyesno(
@@ -645,7 +804,10 @@ class VideoDownloaderApp(tk.Tk):
             self.open_download_folder()
 
     def download_failed(self, message):
-        self.status_label.config(text="")
+        self.status_label.config(
+            text="Download failed. You can try again.",
+            style="Error.TLabel",
+        )
         self.lookup_button.config(state="normal")
         self.download_button.config(state="normal" if self.selected_height else "disabled")
         messagebox.showerror("Download failed", message)
